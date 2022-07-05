@@ -1,25 +1,80 @@
-import React from 'react';
-import ReactDOM from 'react-dom';
-import './styles/index.css';
-import App from './public/app';
-import { CometChat } from '@cometchat-pro/chat';
-import { cometChat } from './app.config'
-const appID = cometChat.APP_ID
-const region = cometChat.REGION
-const appSetting = new CometChat.AppSettingsBuilder()
-  .subscribePresenceForAllUsers()
-  .setRegion(region)
-  .build()
-CometChat.init(appID, appSetting)
-  .then(() => {
-    ReactDOM.render(
-      <React.StrictMode>
-        <App />
-      </React.StrictMode>,
-      document.getElementById('root')
+import './styles/App.css'
+import Header from './components/Header'
+import Sidebar from './components/Sidebar'
+import Feed from './components/Feed'
+import Login from './screens/Login'
+import User from './screens/User'
+import { CometChatUI } from "./CometChatWorkspace/src";
+import { useState, useEffect } from 'react'
+import {
+  BrowserRouter as Router,
+  Switch,
+  Route,
+  Redirect,
+} from 'react-router-dom'
+import { auth } from './firebase'
+function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isLoaded, setIsLoaded] = useState(false)
+  const addStructure = (Component, props) => {
+    return (
+      <>
+        <Header />
+        <main className="app__body">
+          <Sidebar />
+          <Component {...props} />
+          <h1>Inbox</h1>
+          <div>
+            <div className="cometChatUI">
+              <CometChatUI />
+            </div>
+          </div>
+        </main>
+      </>
     )
-    console.log('Initialization completed successfully')
-  })
-  .catch((error) => {
-    console.log('Initialization failed with error:', error)
-  })
+  }
+  const GuardedRoute = ({ component: Component, auth, ...rest }) => (
+    <Route
+      {...rest}
+      render={(props) =>
+        auth ? (
+          addStructure(Component, props)
+        ) : (
+          <Redirect
+            to={{ pathname: '/login', state: { from: props.location } }}
+          />
+        )
+      }
+    />
+  )
+  useEffect(() => {
+    const data = localStorage.getItem('user')
+    if (data) {
+      setIsLoggedIn(true)
+    } else {
+      auth.onAuthStateChanged((user) => {
+        if (user) {
+          setIsLoggedIn(true)
+        }
+      })
+    }
+    setIsLoaded(true)
+  }, [])
+  if (!isLoaded) return null
+  return (
+    <div className="app">
+      <Router>
+        <Switch>
+          <GuardedRoute path="/users/:id" auth={isLoggedIn} component={User} />
+          <Route path="/login">
+            <Login />
+          </Route>
+          <GuardedRoute path="/" auth={isLoggedIn} component={Feed} />
+
+
+        </Switch>
+      </Router>
+    </div>
+  )
+}
+export default App
